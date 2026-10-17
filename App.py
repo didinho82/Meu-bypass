@@ -1,21 +1,29 @@
 import re
 from fastapi import FastAPI
 from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async
 
 app = FastAPI()
 
 async def bypass_cloudflare(url: str):
     async with async_playwright() as p:
-        # Roda o Chromium no servidor do Hugging Face
-        browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
+        # Inicia o Chromium
+        browser = await p.chromium.launch(headless=True, args=["--no-sandbox", "--disable-blink-features=AutomationControlled"])
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         )
         page = await context.new_page()
         
-        # O Segredo: Stealth mode para enganar o Cloudflare
-        await stealth_async(page)
+        # INJEÇÃO MANUAL DE STEALTH (Substitui a biblioteca)
+        await page.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            window.chrome = { runtime: {} };
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                    Promise.resolve({ state: Notification.permission }) :
+                    originalQuery(parameters)
+            );
+        """)
         
         try:
             await page.goto(url, timeout=45000)
